@@ -66,10 +66,13 @@ def main():
         if not label or label in seen:
             continue
         seen.add(label)
+        cat = str(cat).strip() if cat else "Other"
+        if cat == "Pack Start":  # pack starts are just another kind of start line
+            cat = "Starts"
         marks.append({
             "id": len(marks),
             "label": label,
-            "cat": (str(cat).strip() if cat else "Other"),
+            "cat": cat,
             "x": rnd(x),
             "y": rnd(y),
         })
