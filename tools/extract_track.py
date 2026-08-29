@@ -2,9 +2,10 @@
 """One-time extractor: DunbarLayout.xlsx -> track.json for the web field map.
 
 The workbook holds fixed planar geometry (metres, local grid; origin at mark "X",
-the home straight runs along +X). This pulls the survey marks and the drawn track
-context out of the sheets that feed the "Plan" tab's scatter chart and writes a
-compact JSON blob that gets pasted into index.html as `const TRACK = {...}`.
+the home straight runs along +X). This pulls the survey marks straight from the
+Landmarks / Starts / Hurdles / Relays sheets (not the hand-transcribed "All"
+sheet, which has gaps) plus the drawn track context, and writes a compact JSON
+blob that gets pasted into index.html's `<script id="track-data">` block.
 
 Run from the repo root:  python3 tools/extract_track.py
 Then copy track.json's contents into the TRACK const in index.html.
@@ -46,36 +47,50 @@ def col_pairs(ws, xcol, ycol, r0, r1):
     return out
 
 
+# Mark groups, read straight from the source sheets. We deliberately do NOT use
+# the "All" sheet here: it is a hand-transcribed union of these ranges and has
+# gaps (e.g. blank rows dropped H-2-1 and H-3-2), so pulling from source keeps
+# the list complete. (label_col, x_col, y_col, first_row, last_row, category)
+MARK_GROUPS = [
+    ("Landmarks", "A", "B", "C", 3, 23, "Landmarks"),
+    ("Starts", "A", "D", "E", 3, 10, "Starts"),    # 200 m
+    ("Starts", "F", "I", "J", 3, 10, "Starts"),    # 400 m
+    ("Starts", "K", "N", "O", 3, 19, "Starts"),    # 800 m
+    ("Starts", "U", "X", "Y", 3, 11, "Starts"),    # 1500 m
+    ("Starts", "P", "S", "T", 3, 11, "Starts"),    # 3000 m
+    ("Starts", "Z", "AC", "AD", 3, 11, "Starts"),  # pack start -> grouped with Starts
+    ("Hurdles", "A", "F", "G", 3, 82, "Hurdles"),
+    ("Relays", "A", "D", "E", 3, 26, "Relays"),    # change zone 1
+    ("Relays", "F", "I", "J", 3, 26, "Relays"),    # change zone 2
+    ("Relays", "K", "N", "O", 3, 26, "Relays"),    # change zone 3
+]
+
+
 def main():
     if not XLSX.exists():
         sys.exit(f"not found: {XLSX}")
     wb = openpyxl.load_workbook(XLSX, data_only=True)
 
-    # --- survey marks: All!A category, B label, C x, D y --------------------
-    all_ws = wb["All"]
+    # --- survey marks, straight from the source sheets --------------------
     marks = []
     seen = set()
-    for row in range(2, all_ws.max_row + 1):
-        label = all_ws[f"B{row}"].value
-        x = all_ws[f"C{row}"].value
-        y = all_ws[f"D{row}"].value
-        cat = all_ws[f"A{row}"].value
-        if label is None or x is None or y is None:
-            continue
-        label = str(label).strip()
-        if not label or label in seen:
-            continue
-        seen.add(label)
-        cat = str(cat).strip() if cat else "Other"
-        if cat == "Pack Start":  # pack starts are just another kind of start line
-            cat = "Starts"
-        marks.append({
-            "id": len(marks),
-            "label": label,
-            "cat": cat,
-            "x": rnd(x),
-            "y": rnd(y),
-        })
+    for sheet, lcol, xcol, ycol, r0, r1, cat in MARK_GROUPS:
+        ws = wb[sheet]
+        for row in range(r0, r1 + 1):
+            label = ws[f"{lcol}{row}"].value
+            x = ws[f"{xcol}{row}"].value
+            y = ws[f"{ycol}{row}"].value
+            if label is None or x is None or y is None:
+                continue
+            label = str(label).strip()
+            if not label or label in seen:
+                continue
+            try:
+                px, py = rnd(x), rnd(y)
+            except (TypeError, ValueError):
+                continue
+            seen.add(label)
+            marks.append({"id": len(marks), "label": label, "cat": cat, "x": px, "y": py})
 
     # --- 9 lane "line of running" polylines: Lanes rows 3..77 --------------
     lanes_ws = wb["Lanes"]
@@ -137,6 +152,12 @@ def main():
         flag = "ok" if abs(d - 76.89) < 0.05 else "MISMATCH"
         ok &= flag == "ok"
         print(f"  {a} -> {b}: {d:.2f}  {flag}")
+
+    # every hurdle flight has lanes 1..8, every relay change zone 1..8, etc.
+    want = ([f"H-{fl}-{ln}" for fl in range(1, 11) for ln in range(1, 9)])
+    gaps = [lbl for lbl in want if lbl not in by_label]
+    print(f"\nhurdle marks present: {80 - len(gaps)}/80" + (f"  MISSING {gaps}" if gaps else ""))
+    ok &= not gaps
     xs = [m["x"] for m in marks]
     ys = [m["y"] for m in marks]
     print(f"\nbounds: x [{min(xs):.1f}, {max(xs):.1f}]  y [{min(ys):.1f}, {max(ys):.1f}]")
