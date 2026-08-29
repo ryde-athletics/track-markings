@@ -147,10 +147,6 @@
   #zoombtns .btn { width: 40px; height: 40px; font-size: 20px; padding: 0; }
   #scalebar { background: rgba(255,255,255,.85); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; font-size: 11px; font-weight: 700; color: var(--ink); }
   #scalebar .bar { display: block; height: 5px; border: 1.5px solid var(--ink); border-top: none; margin-top: 2px; }
-  #compass {
-    background: rgba(255,255,255,.85); border: 1px solid var(--line); border-radius: 6px;
-    padding: 3px 6px; font-size: 11px; font-weight: 700; text-align: center;
-  }
 
   @media (max-width: 560px) {
     header h1 .sub { display: none; }
@@ -188,7 +184,6 @@
     </div>
 
     <div id="hud">
-      <div id="compass">N&nbsp;&uarr;<div style="font-weight:400;color:var(--muted);font-size:9px">grid&nbsp;+Y</div></div>
       <div id="scalebar"><span id="scaleLabel">10 m</span><span class="bar" id="scaleBar" style="width:60px"></span></div>
       <div id="zoombtns">
         <button class="btn" id="btnZoomIn" aria-label="Zoom in">+</button>
@@ -305,17 +300,27 @@
   // ---- pan / zoom --------------------------------------------------------
   let k = 1, tx = 0, ty = 0;
   const K_MIN = 0.5, K_MAX = 80;
+
+  // Marker sizes are held at a constant *on-screen* size. Counter-scaling by
+  // 1/k alone isn't enough: the SVG also fits its viewBox to the element, so on
+  // a narrow phone one metre is only ~2 px and dots looked tiny. Size in px and
+  // convert to viewBox units via the live screen scale.
+  // touch devices only — a windowed desktop must not count as "coarse"
+  const COARSE = matchMedia("(hover: none) and (pointer: coarse)").matches;
+  const DOT_PX = COARSE ? 8 : 5;
+  const HIT_PX = COARSE ? 19 : 11;
+  const LABEL_PX = COARSE ? 13 : 11;
+  const SEGLABEL_PX = COARSE ? 14 : 12;
+  const NODE_PX = COARSE ? 12 : 8;
+
   function apply() {
     viewport.setAttribute("transform", `translate(${tx} ${ty}) scale(${k})`);
-    // counter-scale marker geometry so screen size stays stable
-    const r = 1 / k;
-    gMarks.querySelectorAll(".mark-dot").forEach(e => e.setAttribute("r", 0.95 * r));
-    gMarks.querySelectorAll(".mark-hit").forEach(e => e.setAttribute("r", 2.7 * r));
-    gMarks.querySelectorAll(".mark-label").forEach(e => {
-      e.style.fontSize = (3 * r) + "px";
-    });
-    overlay.querySelectorAll(".seg-label").forEach(e => e.style.fontSize = (3.4 * r) + "px");
-    overlay.querySelectorAll(".node").forEach(e => e.setAttribute("r", 1.4 * r));
+    const u = 1 / (k * screenScale().ax); // viewBox units per on-screen pixel
+    gMarks.querySelectorAll(".mark-dot").forEach(e => e.setAttribute("r", DOT_PX * u));
+    gMarks.querySelectorAll(".mark-hit").forEach(e => e.setAttribute("r", HIT_PX * u));
+    gMarks.querySelectorAll(".mark-label").forEach(e => { e.style.fontSize = (LABEL_PX * u) + "px"; });
+    overlay.querySelectorAll(".seg-label").forEach(e => e.style.fontSize = (SEGLABEL_PX * u) + "px");
+    overlay.querySelectorAll(".node").forEach(e => e.setAttribute("r", NODE_PX * u));
     svg.dataset.zoomed = String(k > 2.2);
     updateScaleBar();
   }
