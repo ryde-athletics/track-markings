@@ -99,14 +99,6 @@
   .cat-Hurdles   .mark-dot { fill: var(--cat-Hurdles); }
   .cat-Relays    .mark-dot { fill: var(--cat-Relays); }
   .mark.hidden { display: none; }
-
-  .mark-label {
-    font-size: 3px; font-weight: 700; fill: var(--ink);
-    paint-order: stroke; stroke: var(--bg); stroke-width: 1.1; stroke-linejoin: round;
-    pointer-events: none; display: none;
-  }
-  svg#map[data-zoomed="true"] .mark:not(.hidden) .mark-label { display: block; }
-  .mark.selected .mark-label { display: block; }
   .mark.selected .mark-dot { stroke: var(--path); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
 
   #overlay .seg { stroke: var(--path); stroke-width: 2.5; stroke-dasharray: 7 5; fill: none; vector-effect: non-scaling-stroke; }
@@ -257,6 +249,7 @@
     g.setAttribute("class", "mark cat-" + m.cat.replace(/\s+/g, ""));
     g.dataset.id = m.id;
     g.dataset.cat = m.cat;
+    g.dataset.label = m.label;
     const cx = vx(m.x), cy = vy(m.y);
     const hit = document.createElementNS(SVGNS, "circle");
     hit.setAttribute("class", "mark-hit");
@@ -264,11 +257,7 @@
     const dot = document.createElementNS(SVGNS, "circle");
     dot.setAttribute("class", "mark-dot");
     dot.setAttribute("cx", cx); dot.setAttribute("cy", cy); dot.setAttribute("r", 0.95);
-    const lab = document.createElementNS(SVGNS, "text");
-    lab.setAttribute("class", "mark-label");
-    lab.setAttribute("x", cx + 1.8); lab.setAttribute("y", cy - 1.8);
-    lab.textContent = m.label;
-    g.append(hit, dot, lab);
+    g.append(hit, dot);
     gMarks.appendChild(g);
     markEls.set(m.id, g);
   });
@@ -307,21 +296,18 @@
   // convert to viewBox units via the live screen scale.
   // touch devices only — a windowed desktop must not count as "coarse"
   const COARSE = matchMedia("(hover: none) and (pointer: coarse)").matches;
-  const DOT_PX = COARSE ? 8 : 5;
-  const HIT_PX = COARSE ? 19 : 11;
-  const LABEL_PX = COARSE ? 13 : 11;
-  const SEGLABEL_PX = COARSE ? 14 : 12;
-  const NODE_PX = COARSE ? 12 : 8;
+  const DOT_PX = COARSE ? 6 : 5;
+  const HIT_PX = COARSE ? 15 : 11;
+  const SEGLABEL_PX = COARSE ? 13 : 12;
+  const NODE_PX = COARSE ? 10 : 8;
 
   function apply() {
     viewport.setAttribute("transform", `translate(${tx} ${ty}) scale(${k})`);
     const u = 1 / (k * screenScale().ax); // viewBox units per on-screen pixel
     gMarks.querySelectorAll(".mark-dot").forEach(e => e.setAttribute("r", DOT_PX * u));
     gMarks.querySelectorAll(".mark-hit").forEach(e => e.setAttribute("r", HIT_PX * u));
-    gMarks.querySelectorAll(".mark-label").forEach(e => { e.style.fontSize = (LABEL_PX * u) + "px"; });
     overlay.querySelectorAll(".seg-label").forEach(e => e.style.fontSize = (SEGLABEL_PX * u) + "px");
     overlay.querySelectorAll(".node").forEach(e => e.setAttribute("r", NODE_PX * u));
-    svg.dataset.zoomed = String(k > 2.2);
     updateScaleBar();
   }
   function clientToVB(clientX, clientY) {
