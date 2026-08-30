@@ -103,7 +103,7 @@
 
   #overlay .seg { stroke: var(--path); stroke-width: 2.5; stroke-dasharray: 7 5; fill: none; vector-effect: non-scaling-stroke; }
   #overlay .node { fill: none; stroke: var(--path); stroke-width: 2; vector-effect: non-scaling-stroke; }
-  #overlay .seg-label {
+  #overlay-top .seg-label {
     font-size: 3.4px; font-weight: 800; fill: var(--path);
     paint-order: stroke; stroke: var(--bg); stroke-width: 1.4; stroke-linejoin: round;
     text-anchor: middle; pointer-events: none;
@@ -243,6 +243,11 @@
   gMarks.setAttribute("id", "marks");
   viewport.appendChild(gMarks);
 
+  // segment length labels live above the marks so the numbers are never hidden
+  const overlayTop = document.createElementNS(SVGNS, "g");
+  overlayTop.setAttribute("id", "overlay-top");
+  viewport.appendChild(overlayTop);
+
   const markEls = new Map(); // id -> <g>
   TRACK.marks.forEach(m => {
     const g = document.createElementNS(SVGNS, "g");
@@ -306,7 +311,7 @@
     const u = 1 / (k * screenScale().ax); // viewBox units per on-screen pixel
     gMarks.querySelectorAll(".mark-dot").forEach(e => e.setAttribute("r", DOT_PX * u));
     gMarks.querySelectorAll(".mark-hit").forEach(e => e.setAttribute("r", HIT_PX * u));
-    overlay.querySelectorAll(".seg-label").forEach(e => e.style.fontSize = (SEGLABEL_PX * u) + "px");
+    overlayTop.querySelectorAll(".seg-label").forEach(e => e.style.fontSize = (SEGLABEL_PX * u) + "px");
     overlay.querySelectorAll(".node").forEach(e => e.setAttribute("r", NODE_PX * u));
     updateScaleBar();
   }
@@ -461,6 +466,7 @@
 
     // overlay
     overlay.textContent = "";
+    overlayTop.textContent = "";
     for (let i = 1; i < path.length; i++) {
       const a = byId.get(path[i - 1]), b = byId.get(path[i]);
       const seg = document.createElementNS(SVGNS, "line");
@@ -474,7 +480,7 @@
       t.setAttribute("x", (vx(a.x) + vx(b.x)) / 2);
       t.setAttribute("y", (vy(a.y) + vy(b.y)) / 2 - 1.5);
       t.textContent = fmt(d) + " m";
-      overlay.appendChild(t);
+      overlayTop.appendChild(t); // above the marks
     }
     path.forEach(id => {
       const m = byId.get(id);
